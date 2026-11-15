@@ -1,4 +1,4 @@
-# Stagehand – notes for Claude Code
+# Showtime Suite – notes for Claude Code
 
 Installs, updates and starts the show tools (Show Master, Beamweave, Lantern, …) and runs their releases
 from one place. Rust + egui.
@@ -42,8 +42,8 @@ Build output and local files: `target/`, `dist/`, `.DS_Store`, logs, editor file
 
 ## Releases
 
-Released files go to the public repository **`Cheter0410/stagehand-releases`**. It only holds the downloads (and a
-README) – never develop there. Installed copies and Stagehand read the newest release from it.
+Released files go to the public repository **`Cheter0410/showtime-suite-releases`**. It only holds the downloads (and a
+README) – never develop there. Installed copies and Showtime Suite read the newest release from it.
 
 `./release.sh` publishes (Arch PC: Linux + Windows, Mac: the DMG); `./release.sh status` shows what is
 up. Each computer publishes on its own.
@@ -56,10 +56,10 @@ All live side by side in `~/Desktop/dev` (folder names in lower case):
 |---|---|---|
 | `show-master` | Cheter0410/Show-Master | Cheter0410/show-master-releases |
 | `lantern` | Cheter0410/lantern | Cheter0410/lantern-releases |
-| `stagehand` | Cheter0410/stagehand | Cheter0410/stagehand-releases |
+| `showtime-suite` | Cheter0410/showtime-suite | Cheter0410/showtime-suite-releases |
 | `beamweave` | Cheter0410/beamweave | Cheter0410/beamweave-releases |
 
-Stagehand installs, updates and starts the others; its catalog is `stagehand/apps.json`.
+Showtime Suite installs, updates and starts the others; its catalog is `showtime-suite/apps.json`.
 
 ## Build and test
 
@@ -71,8 +71,12 @@ cargo clippy --all-targets
 ## Project notes
 
 - `apps.json` is the catalog. When it changes, copy the same file to the default branch of
-  `Cheter0410/stagehand-releases` – installed copies read the catalog from there (see README, "Adding
+  `Cheter0410/showtime-suite-releases` – installed copies read the catalog from there (see README, "Adding
   an app").
-- The `dev` part of each app (repo, folder, release command) is how Stagehand finds the checkouts and
+- The `dev` part of each app (repo, folder, release command) is how Showtime Suite finds the checkouts and
   runs releases. Folder names are lower case (`show-master`, `lantern`, `beamweave`).
+- Until 0.1 this was **Stagehand**. `src/migrate.rs` (and `user_apps_move` / `mac_folder_move` in
+  `scripts/setup.sh`) move installs with the old name over; keep them for a while. The old names in
+  `CHANGELOG.md` stay as they were.
+- `scripts/setup.sh` is the same file in Show Master, Lantern and here – change all three together.
 - `scripts/ui.sh` is the shared terminal UI of the release scripts (Show Master and Lantern use it too).

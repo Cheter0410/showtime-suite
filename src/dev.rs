@@ -2,7 +2,7 @@
 //! open a terminal that releases it (`release.sh`) or builds and installs it
 //! from source - one app or all of them in a row.
 //!
-//! The work itself is done by each repository's own scripts; Stagehand only
+//! The work itself is done by each repository's own scripts; Showtime Suite only
 //! finds the checkout, shows its state and opens the terminal.
 
 use crate::catalog::AppDef;
@@ -275,7 +275,7 @@ fn on_path(bin: &str) -> bool {
 /// Open a terminal window running `steps`.
 pub fn open_terminal(title: &str, steps: &[Step]) -> Result<(), String> {
     let file = std::env::temp_dir().join(format!(
-        "stagehand-{}-{}.sh",
+        "showtime-suite-{}-{}.sh",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

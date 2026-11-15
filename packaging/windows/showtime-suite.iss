@@ -3,17 +3,17 @@
 #endif
 
 [Setup]
-AppId={{3E5A9C21-7D4B-4F6E-9A1C-5B8D2E0F7A63}
-AppName=Stagehand
+AppId={{D832F8E4-E533-492A-BD70-E4C6692C12B6}
+AppName=Showtime Suite
 AppVersion={#AppVersion}
 AppPublisher=Cheter
-DefaultDirName={autopf}\Stagehand
-DefaultGroupName=Stagehand
+DefaultDirName={autopf}\Showtime Suite
+DefaultGroupName=Showtime Suite
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=Stagehand-Setup-{#AppVersion}
+OutputBaseFilename=Showtime-Suite-Setup-{#AppVersion}
 SetupIconFile=..\..\assets\icon.ico
-UninstallDisplayIcon={app}\stagehand.exe
+UninstallDisplayIcon={app}\showtime-suite.exe
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -35,8 +35,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\..\stage\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
 [Icons]
-Name: "{autoprograms}\Stagehand"; Filename: "{app}\stagehand.exe"
-Name: "{autodesktop}\Stagehand"; Filename: "{app}\stagehand.exe"; Tasks: desktopicon
+Name: "{autoprograms}\Showtime Suite"; Filename: "{app}\showtime-suite.exe"
+Name: "{autodesktop}\Showtime Suite"; Filename: "{app}\showtime-suite.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\stagehand.exe"; Description: "{cm:LaunchProgram,Stagehand}"; Flags: nowait postinstall
+Filename: "{app}\showtime-suite.exe"; Description: "{cm:LaunchProgram,Showtime Suite}"; Flags: nowait postinstall

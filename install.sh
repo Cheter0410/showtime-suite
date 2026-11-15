@@ -1,12 +1,12 @@
 #!/bin/bash
-# Stagehand on Linux: update this checkout, build and install - in one go, no sudo
+# Showtime Suite on Linux: update this checkout, build and install - in one go, no sudo
 # needed for the app itself.
 #
-#   git clone https://github.com/Cheter0410/stagehand.git && cd stagehand && ./install.sh
+#   git clone https://github.com/Cheter0410/showtime-suite.git && cd showtime-suite && ./install.sh
 #
 # Run it again later to update; only what is needed is done. The app goes into
-# the folder all show tools share (~/.local/share/stagehand/apps/stagehand, as
-# Stagehand installs it), with a menu entry and the command "stagehand".
+# the folder all show tools share (~/.local/share/showtime-suite/apps/showtime-suite, as
+# Showtime Suite installs it), with a menu entry and the command "showtime-suite".
 # Remove with: ./install.sh --uninstall
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -17,11 +17,11 @@ cd "$(dirname "$0")"
 setup_no_root
 
 if [ "${1:-}" = "--uninstall" ]; then
-  ui_header "Stagehand" "Entfernen"
-  user_app_remove stagehand stagehand && ui_ok "Aus dem Stagehand-Ordner entfernt"
-  if system_copy_there stagehand; then
+  ui_header "Showtime Suite" "Entfernen"
+  user_app_remove showtime-suite showtime-suite && ui_ok "Aus dem Showtime-Suite-Ordner entfernt"
+  if system_copy_there showtime-suite; then
     ui_sudo
-    ui_run "Alte Kopie in /usr/local entfernen" system_copy_remove stagehand
+    ui_run "Alte Kopie in /usr/local entfernen" system_copy_remove showtime-suite
   fi
   ui_ok "Entfernt (Einstellungen und eigene Dateien bleiben)"
   exit 0
@@ -29,7 +29,7 @@ fi
 
 # --- Neuester Stand (danach läuft die neue Fassung dieses Skripts) ---------
 if [ -z "${SM_PULLED:-}" ]; then
-  ui_header "Stagehand" "Installieren / Aktualisieren"
+  ui_header "Showtime Suite" "Installieren / Aktualisieren"
   if setup_pull; then SM_PULLED=1 exec bash "$(pwd)/$(basename "$0")" "$@"; fi
 fi
 
@@ -62,28 +62,28 @@ fi
 setup_rust
 
 V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
-ui_section "Stagehand $V"
+ui_section "Showtime Suite $V"
 ui_run "Programm bauen" cargo build --release --locked
-BIN=target/release/stagehand
+BIN=target/release/showtime-suite
 
 # --- Installieren (nur wenn sich etwas geändert hat) -------------------------
-if user_app_current stagehand stagehand "$BIN"; then
-  ui_skip "Installieren" "Stagehand $V ist schon installiert"
-elif [ -n "" ] && pgrep -x stagehand >/dev/null 2>&1; then
-  ui_warn "Stagehand läuft gerade – nicht ersetzt (es könnte eine Show laufen)."
+if user_app_current showtime-suite showtime-suite "$BIN"; then
+  ui_skip "Installieren" "Showtime Suite $V ist schon installiert"
+elif [ -n "" ] && pgrep -x showtime-suite >/dev/null 2>&1; then
+  ui_warn "Showtime Suite läuft gerade – nicht ersetzt (es könnte eine Show laufen)."
   ui_info "Beenden, dann nochmal: ./install.sh"
   ui_done
   exit 0
 else
-  ui_run "Installieren (Stagehand-Ordner)" user_app_install stagehand stagehand "$V" "$BIN" packaging/linux/stagehand.desktop assets/icon.png
+  ui_run "Installieren (Showtime-Suite-Ordner)" user_app_install showtime-suite showtime-suite "$V" "$BIN" packaging/linux/showtime-suite.desktop assets/icon.png
 fi
 # A copy an older version of this script put into /usr/local would be found first.
-if system_copy_there stagehand; then
+if system_copy_there showtime-suite; then
   ui_sudo
-  ui_run "Alte Kopie in /usr/local entfernen" system_copy_remove stagehand
+  ui_run "Alte Kopie in /usr/local entfernen" system_copy_remove showtime-suite
 fi
 user_bin_on_path
 
 ui_section "Fertig"
-ui_ok "Starten: im Anwendungsmenü oder mit  stagehand"
+ui_ok "Starten: im Anwendungsmenü oder mit  showtime-suite"
 ui_done

@@ -1,17 +1,17 @@
 //! What differs per operating system: which release file fits, where an app
 //! is installed (and which version), installing it and starting it.
 //!
-//! All apps go into one folder per system, next to Stagehand itself:
+//! All apps go into one folder per system, next to Showtime Suite itself:
 //!
-//! * macOS: the `.dmg`; the app goes to /Applications/Stagehand (or
-//!   ~/Applications/Stagehand when /Applications is not writable). Version
+//! * macOS: the `.dmg`; the app goes to /Applications/Showtime Suite (or
+//!   ~/Applications/Showtime Suite when /Applications is not writable). Version
 //!   from the bundle's Info.plist. A copy found in the old place
 //!   (/Applications) is moved there with the next install or update.
 //! * Windows: the Inno Setup installer, run silently for the current user,
-//!   into %LOCALAPPDATA%\Programs\Stagehand\<App>. Version and folder from the
+//!   into %LOCALAPPDATA%\Programs\Showtime Suite\<App>. Version and folder from the
 //!   installer's uninstall entry in the registry; an older install elsewhere
 //!   is removed after the new one is in place.
-//! * Linux: the portable `.tar.gz`, unpacked to ~/.local/share/stagehand/apps
+//! * Linux: the portable `.tar.gz`, unpacked to ~/.local/share/showtime-suite/apps
 //!   with a menu entry and a link in ~/.local/bin. An app installed by the
 //!   system (e.g. the Arch package) is found on PATH and started too.
 //!
@@ -69,7 +69,11 @@ fn output(cmd: &mut Command) -> Option<String> {
 // --------------------------------------------------------------------------
 
 /// The folder all apps share (macOS: inside Applications).
-pub const FOLDER: &str = "Stagehand";
+pub const FOLDER: &str = "Showtime Suite";
+
+/// Its name before the rename (Stagehand 0.1). [`crate::migrate`] moves it over.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const OLD_FOLDER: &str = "Stagehand";
 
 /// Where an app bundle may be: the shared folder first, then the old places.
 #[cfg(target_os = "macos")]
@@ -77,6 +81,11 @@ fn mac_locations(bundle: &str) -> Vec<PathBuf> {
     let mut v = vec![Path::new("/Applications").join(FOLDER).join(bundle)];
     if let Some(h) = dirs::home_dir() {
         v.push(h.join("Applications").join(FOLDER).join(bundle));
+    }
+    // The old shared folder, when it could not be moved (no right to).
+    v.push(Path::new("/Applications").join(OLD_FOLDER).join(bundle));
+    if let Some(h) = dirs::home_dir() {
+        v.push(h.join("Applications").join(OLD_FOLDER).join(bundle));
     }
     v.push(Path::new("/Applications").join(bundle));
     if let Some(h) = dirs::home_dir() {
@@ -86,7 +95,7 @@ fn mac_locations(bundle: &str) -> Vec<PathBuf> {
 }
 
 /// Windows: the folder an app is installed to, e.g.
-/// `C:\Users\me\AppData\Local\Programs\Stagehand\Show Master`.
+/// `C:\Users\me\AppData\Local\Programs\Showtime Suite\Show Master`.
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 pub fn windows_app_dir(local_app_data: &Path, app_name: &str) -> PathBuf {
     local_app_data.join("Programs").join(FOLDER).join(app_name)
@@ -138,7 +147,7 @@ pub fn reg_value(out: &str, name: &str) -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
-fn inno_entry(app_id: &str) -> Option<(Option<String>, PathBuf)> {
+pub(crate) fn inno_entry(app_id: &str) -> Option<(Option<String>, PathBuf)> {
     // Per-user installs (the default) and per-machine ones (64- and 32-bit view).
     let tail = format!(r"Microsoft\Windows\CurrentVersion\Uninstall\{app_id}_is1");
     [
@@ -262,7 +271,7 @@ pub fn is_running(app: &AppDef, inst: &Installed) -> bool {
     }
 }
 
-/// Start the app (detached; Stagehand can be closed afterwards).
+/// Start the app (detached; Showtime Suite can be closed afterwards).
 pub fn launch(inst: &Installed) -> Result<(), String> {
     let mut cmd = if cfg!(target_os = "macos") {
         let mut c = Command::new("open");
@@ -308,7 +317,7 @@ pub fn install(app: &AppDef, file: &Path, version: &str) -> Result<(), String> {
     install_files(app, file, version)
 }
 
-/// [`install`] without the running check (Stagehand updating itself).
+/// [`install`] without the running check (Showtime Suite updating itself).
 pub fn install_files(app: &AppDef, file: &Path, version: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -361,7 +370,7 @@ pub fn install_files(app: &AppDef, file: &Path, version: &str) -> Result<(), Str
 
 #[cfg(target_os = "macos")]
 fn install_dmg(dmg: &Path, bundle: &str) -> Result<(), String> {
-    let mount = std::env::temp_dir().join(format!("stagehand-{}", std::process::id()));
+    let mount = std::env::temp_dir().join(format!("showtime-suite-{}", std::process::id()));
     std::fs::create_dir_all(&mount).map_err(|e| e.to_string())?;
     let ok = Command::new("hdiutil")
         .args(["attach", "-nobrowse", "-readonly", "-mountpoint"])
@@ -426,7 +435,7 @@ fn install_dmg(dmg: &Path, bundle: &str) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn writable(dir: &Path) -> bool {
-    let probe = dir.join(format!(".stagehand-probe-{}", std::process::id()));
+    let probe = dir.join(format!(".showtime-suite-probe-{}", std::process::id()));
     let ok = std::fs::write(&probe, b"").is_ok();
     let _ = std::fs::remove_file(&probe);
     ok
@@ -490,6 +499,16 @@ fn install_tarball(app: &AppDef, file: &Path, version: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// The line that marks a menu entry as made by us (it is removed with the app).
+#[cfg(target_os = "linux")]
+pub const MENU_MARK: &str = "X-Showtime-Suite";
+
+/// Our mark, or the one from before the rename.
+#[cfg(target_os = "linux")]
+pub fn is_mark(line: &str) -> bool {
+    line.starts_with("X-Showtime-Suite=") || line.starts_with("X-Stagehand=")
+}
+
 /// The menu entry of an installed app. The archive's own entry is kept (file
 /// types, categories, translations); only the program and icon get full paths,
 /// so it works without ~/.local/bin on the PATH.
@@ -497,8 +516,9 @@ fn install_tarball(app: &AppDef, file: &Path, version: &str) -> Result<(), Strin
 fn menu_entry(packaged: Option<&str>, name: &str, tagline: &str, bin: &Path, icon: &str) -> String {
     let Some(p) = packaged.filter(|p| p.trim_start().starts_with("[Desktop Entry]")) else {
         return format!(
-            "[Desktop Entry]\nType=Application\nName={name}\nComment={tagline}\nExec=\"{}\" %F\n{icon}Terminal=false\nCategories=AudioVideo;\nX-Stagehand=1\n",
-            bin.display()
+            "[Desktop Entry]\nType=Application\nName={name}\nComment={tagline}\nExec=\"{}\" %F\n{icon}Terminal=false\nCategories=AudioVideo;\n{MARK}=1\n",
+            bin.display(),
+            MARK = MENU_MARK
         );
     };
     let mut out = String::new();
@@ -510,13 +530,13 @@ fn menu_entry(packaged: Option<&str>, name: &str, tagline: &str, bin: &Path, ico
                 .find(' ')
                 .map(|i| exec[i..].to_string())
                 .unwrap_or_default();
-        } else if !line.starts_with("Icon=") && !line.starts_with("X-Stagehand=") {
+        } else if !line.starts_with("Icon=") && !is_mark(line) {
             out.push_str(line);
             out.push('\n');
         }
     }
     out.push_str(&format!(
-        "Exec=\"{}\"{args}\n{icon}X-Stagehand=1\n",
+        "Exec=\"{}\"{args}\n{icon}{MENU_MARK}=1\n",
         bin.display()
     ));
     out
@@ -526,7 +546,7 @@ fn menu_entry(packaged: Option<&str>, name: &str, tagline: &str, bin: &Path, ico
 // Uninstall
 // --------------------------------------------------------------------------
 
-/// Whether Stagehand can remove this copy: its own always; one the system
+/// Whether Showtime Suite can remove this copy: its own always; one the system
 /// installed (package, /usr/local) when the desktop can ask for the password.
 pub fn removable(app: &AppDef, inst: &Installed) -> bool {
     #[cfg(target_os = "linux")]
@@ -644,10 +664,10 @@ pub fn uninstall(app: &AppDef, inst: &Installed) -> Result<(), String> {
         let dir = crate::paths::linux_apps_dir()
             .ok_or("no home folder")?
             .join(&app.id);
-        // Menu entry and command, only where Stagehand made them.
+        // Menu entry and command, only where Showtime Suite made them.
         if let Some(data) = dirs::data_dir() {
             let desktop = data.join("applications").join(format!("{}.desktop", l.bin));
-            if std::fs::read_to_string(&desktop).is_ok_and(|t| t.contains("X-Stagehand=1")) {
+            if std::fs::read_to_string(&desktop).is_ok_and(|t| t.lines().any(|l| is_mark(l) && l.ends_with("=1"))) {
                 let _ = std::fs::remove_file(&desktop);
             }
         }
@@ -687,14 +707,14 @@ mod tests {
         let base = Path::new(r"C:\Users\a\AppData\Local");
         let d = windows_app_dir(base, "Show Master");
         assert!(
-            d.ends_with("Stagehand/Show Master")
-                || d.to_string_lossy().ends_with(r"Stagehand\Show Master")
+            d.ends_with("Showtime Suite/Show Master")
+                || d.to_string_lossy().ends_with(r"Showtime Suite\Show Master")
         );
         // Not removable: missing files, same folder, or the new one inside it.
         let tmp = std::env::temp_dir().join(format!("sh-old-{}", std::process::id()));
         let old = tmp.join("Show Master");
         std::fs::create_dir_all(&old).unwrap();
-        let new = tmp.join("Stagehand").join("Show Master");
+        let new = tmp.join("Showtime Suite").join("Show Master");
         assert!(!old_install_removable(&old, &new, "showmaster.exe"));
         std::fs::write(old.join("showmaster.exe"), b"").unwrap();
         std::fs::write(old.join("unins000.exe"), b"").unwrap();
@@ -747,7 +767,7 @@ mod tests {
         assert!(e.contains("MimeType=application/pdf;\n"));
         assert!(e.contains("Exec=\"/a b/lantern\" %f\n"));
         assert!(e.contains("Icon=/a b/icon.png\n") && !e.contains("Icon=lantern"));
-        assert!(e.ends_with("X-Stagehand=1\n"));
+        assert!(e.ends_with("X-Showtime-Suite=1\n"));
         // No usable packaged entry: a plain one.
         let e = menu_entry(Some("junk"), "Lantern", "t", Path::new("/x/lantern"), "");
         assert!(e.starts_with("[Desktop Entry]") && e.contains("Name=Lantern"));
@@ -792,7 +812,7 @@ mod tests {
         install_tarball(&app, &file, "1.0.0").unwrap();
         let inst = installed(&app).unwrap();
         assert_eq!(inst.version.as_deref(), Some("1.0.0"));
-        assert!(inst.path.ends_with("stagehand/apps/demo/demo"));
+        assert!(inst.path.ends_with("showtime-suite/apps/demo/demo"));
         assert!(home.join("data/applications/demo.desktop").exists());
         assert!(home.join(".local/bin/demo").exists());
         assert!(removable(&app, &inst));

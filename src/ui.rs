@@ -22,7 +22,7 @@ const ERROR: Color32 = Color32::from_rgb(239, 68, 68);
 const OK: Color32 = Color32::from_rgb(34, 197, 94);
 
 /// This program as an entry of its own releases (self-update).
-const SELF_RELEASES: &str = "Cheter0410/stagehand-releases";
+const SELF_RELEASES: &str = "Cheter0410/showtime-suite-releases";
 
 enum Msg {
     Catalog(Catalog),
@@ -122,7 +122,7 @@ impl Launcher {
         };
         l.set_catalog(Catalog::load(), ctx);
         l.refresh(ctx);
-        // The live catalog (new apps without a new Stagehand).
+        // The live catalog (new apps without a new Showtime Suite).
         let (tx, c) = (l.tx.clone(), ctx.clone());
         std::thread::spawn(move || {
             if let Ok(cat) = Catalog::fetch() {
@@ -130,7 +130,7 @@ impl Launcher {
                 c.request_repaint();
             }
         });
-        // A newer Stagehand?
+        // A newer Showtime Suite?
         let (tx, c) = (l.tx.clone(), ctx.clone());
         std::thread::spawn(move || {
             let me = self_def();
@@ -265,21 +265,21 @@ impl Launcher {
                     }
                 }
                 Msg::Progress(id, d, t) => {
-                    if id == "stagehand" {
+                    if id == "showtime-suite" {
                         self.self_job = Some(Job::Download(d, t));
                     } else if let Some(c) = self.card_mut(&id) {
                         c.job = Some(Job::Download(d, t));
                     }
                 }
                 Msg::Installing(id) => {
-                    if id == "stagehand" {
+                    if id == "showtime-suite" {
                         self.self_job = Some(Job::Install);
                     } else if let Some(c) = self.card_mut(&id) {
                         c.job = Some(Job::Install);
                     }
                 }
                 Msg::Finished(id, r) => {
-                    if id == "stagehand" {
+                    if id == "showtime-suite" {
                         self.self_job = None;
                         self.self_error = r.err();
                         continue;
@@ -326,7 +326,7 @@ impl Launcher {
         }
     }
 
-    /// Apps with a source repository: the catalog's, then Stagehand itself.
+    /// Apps with a source repository: the catalog's, then Showtime Suite itself.
     fn dev_apps(&self) -> Vec<AppDef> {
         let mut v: Vec<AppDef> = self
             .cards
@@ -562,12 +562,12 @@ impl Launcher {
             let tx2 = tx.clone();
             let cx2 = cx.clone();
             let progress = move |d, t| {
-                let _ = tx2.send(Msg::Progress("stagehand".into(), d, t));
+                let _ = tx2.send(Msg::Progress("showtime-suite".into(), d, t));
                 cx2.request_repaint();
             };
             let r = github::download(&asset, &crate::paths::download_dir(), &progress).and_then(
                 |file| {
-                    let _ = tx.send(Msg::Installing("stagehand".into()));
+                    let _ = tx.send(Msg::Installing("showtime-suite".into()));
                     cx.request_repaint();
                     self_install(&me, &file, &rel.version)
                 },
@@ -576,7 +576,7 @@ impl Launcher {
                 // The new version takes over: quit (it was started already).
                 Ok(()) => std::process::exit(0),
                 Err(e) => {
-                    let _ = tx.send(Msg::Finished("stagehand".into(), Err(e)));
+                    let _ = tx.send(Msg::Finished("showtime-suite".into(), Err(e)));
                     cx.request_repaint();
                 }
             }
@@ -584,32 +584,32 @@ impl Launcher {
     }
 }
 
-/// Stagehand in its own releases (for self-update).
+/// Showtime Suite in its own releases (for self-update).
 fn self_def() -> AppDef {
     AppDef {
-        id: "stagehand".into(),
-        name: "Stagehand".into(),
+        id: "showtime-suite".into(),
+        name: "Showtime Suite".into(),
         tagline: String::new(),
         color: String::new(),
         releases: SELF_RELEASES.into(),
         icon_url: None,
         macos: Some(catalog::MacDef {
             asset_suffix: ".dmg".into(),
-            app: "Stagehand.app".into(),
+            app: "Showtime Suite.app".into(),
         }),
         windows: Some(catalog::WinDef {
-            asset_prefix: "Stagehand-Setup-".into(),
+            asset_prefix: "Showtime-Suite-Setup-".into(),
             asset_suffix: ".exe".into(),
-            inno_app_id: "{3E5A9C21-7D4B-4F6E-9A1C-5B8D2E0F7A63}".into(),
-            exe: "stagehand.exe".into(),
+            inno_app_id: "{D832F8E4-E533-492A-BD70-E4C6692C12B6}".into(),
+            exe: "showtime-suite.exe".into(),
         }),
         linux: Some(catalog::LinuxDef {
             asset_suffix: "-linux-x86_64.tar.gz".into(),
-            bin: "stagehand".into(),
+            bin: "showtime-suite".into(),
         }),
         dev: Some(catalog::DevDef {
-            repo: "Cheter0410/stagehand".into(),
-            folder: "stagehand".into(),
+            repo: "Cheter0410/showtime-suite".into(),
+            folder: "showtime-suite".into(),
             release: Some("./release.sh".into()),
             install_macos: Some("bash install-mac.sh".into()),
             install_linux: Some("./install.sh".into()),
@@ -617,7 +617,7 @@ fn self_def() -> AppDef {
     }
 }
 
-/// Install a new Stagehand over this one and start it.
+/// Install a new Showtime Suite over this one and start it.
 fn self_install(me: &AppDef, file: &std::path::Path, version: &str) -> Result<(), String> {
     if cfg!(target_os = "windows") {
         // The installer replaces the running program; it closes this one.
@@ -699,7 +699,7 @@ impl eframe::App for Launcher {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.drain(&ctx);
-        // Running / installed state changes outside Stagehand: look again.
+        // Running / installed state changes outside Showtime Suite: look again.
         if self.last_detect.elapsed() > Duration::from_secs(4)
             && self.cards.iter().all(|c| c.job.is_none())
         {
@@ -716,7 +716,7 @@ impl eframe::App for Launcher {
                     if let Some(t) = texture_logo(&ctx) {
                         ui.add(egui::Image::new(&t).fit_to_exact_size(Vec2::splat(30.0)));
                     }
-                    ui.label(RichText::new("Stagehand").size(22.0).strong());
+                    ui.label(RichText::new("Showtime Suite").size(22.0).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
@@ -743,7 +743,7 @@ impl eframe::App for Launcher {
                 }
                 ui.add_space(6.0);
 
-                // A newer Stagehand.
+                // A newer Showtime Suite.
                 if let Some(r) = self.self_update.clone() {
                     let mut go = false;
                     Frame::new()
@@ -753,7 +753,7 @@ impl eframe::App for Launcher {
                         .inner_margin(Margin::symmetric(14, 10))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("Stagehand {} is available.", r.version)).strong());
+                                ui.label(RichText::new(format!("Showtime Suite {} is available.", r.version)).strong());
                                 match self.self_job {
                                     Some(Job::Download(d, t)) => {
                                         ui.add(egui::ProgressBar::new(if t > 0 { d as f32 / t as f32 } else { 0.0 }).desired_width(160.0));
@@ -838,11 +838,11 @@ impl eframe::App for Launcher {
 }
 
 fn texture_logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
-    let id = egui::Id::unique("stagehand-logo");
+    let id = egui::Id::unique("showtime-suite-logo");
     if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return Some(t);
     }
-    let t = texture(ctx, "stagehand", include_bytes!("../assets/icon.png"))?;
+    let t = texture(ctx, "showtime-suite", include_bytes!("../assets/icon.png"))?;
     ctx.data_mut(|d| d.insert_temp(id, t.clone()));
     Some(t)
 }
@@ -1238,14 +1238,14 @@ fn dev_section(
                     .any(|a| repos.get(&a.id).is_some_and(|(d, s)| d.is_some() && s.is_some()));
                 if ui
                     .add_enabled(any, egui::Button::new("Release all"))
-                    .on_hover_text("One terminal that releases every app in turn (Stagehand last)")
+                    .on_hover_text("One terminal that releases every app in turn (Showtime Suite last)")
                     .clicked()
                 {
                     out.push(DevAction::ReleaseAll);
                 }
                 if ui
                     .add_enabled(any, egui::Button::new("Install all"))
-                    .on_hover_text("One terminal that builds and installs every app from source (Stagehand last)")
+                    .on_hover_text("One terminal that builds and installs every app from source (Showtime Suite last)")
                     .clicked()
                 {
                     out.push(DevAction::InstallAll);

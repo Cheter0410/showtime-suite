@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-const AGENT: &str = concat!("Stagehand/", env!("CARGO_PKG_VERSION"));
+const AGENT: &str = concat!("Showtime Suite/", env!("CARGO_PKG_VERSION"));
 
 /// HTTP client: the system's certificates and its proxy setting
 /// (`HTTPS_PROXY`), as networks in venues and companies often need.

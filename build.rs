@@ -8,8 +8,8 @@ fn main() {
     }
     let mut res = winresource::WindowsResource::new();
     res.set_icon("assets/icon.ico");
-    res.set("ProductName", "Stagehand");
-    res.set("FileDescription", "Stagehand");
+    res.set("ProductName", "Showtime Suite");
+    res.set("FileDescription", "Showtime Suite");
     if let Err(e) = res.compile() {
         println!("cargo:warning=could not embed the Windows icon: {e}");
     }

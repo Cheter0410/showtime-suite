@@ -1,6 +1,6 @@
-//! The apps Stagehand knows: built in (`apps.json` in the repository), and
+//! The apps Showtime Suite knows: built in (`apps.json` in the repository), and
 //! refreshed from `apps.json` in the releases repository, so a new app shows
-//! up without a new Stagehand. The last downloaded catalog is kept for
+//! up without a new Showtime Suite. The last downloaded catalog is kept for
 //! starting without internet.
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 /// Where the live catalog lives (the default branch of the releases repository).
 pub const CATALOG_URL: &str =
-    "https://raw.githubusercontent.com/Cheter0410/stagehand-releases/main/apps.json";
+    "https://raw.githubusercontent.com/Cheter0410/showtime-suite-releases/main/apps.json";
 
 const BUILT_IN: &str = include_str!("../apps.json");
 

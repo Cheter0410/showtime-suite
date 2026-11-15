@@ -1,4 +1,4 @@
-//! Stagehand: installs, updates and starts the show tools (Show Master,
+//! Showtime Suite: installs, updates and starts the show tools (Show Master,
 //! Beamweave and whatever comes next).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -6,18 +6,20 @@
 mod catalog;
 mod dev;
 mod github;
+mod migrate;
 mod paths;
 mod system;
 mod ui;
 
 fn main() -> eframe::Result<()> {
     if std::env::args().any(|a| a == "--version" || a == "-V") {
-        println!("stagehand {}", env!("CARGO_PKG_VERSION"));
+        println!("showtime-suite {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    migrate::run();
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Stagehand")
-        .with_app_id("stagehand")
+        .with_title("Showtime Suite")
+        .with_app_id("showtime-suite")
         .with_inner_size([820.0, 600.0])
         .with_min_inner_size([520.0, 420.0]);
     if let Ok(img) = image::load_from_memory(include_bytes!("../assets/icon.png")) {
@@ -30,7 +32,7 @@ fn main() -> eframe::Result<()> {
         });
     }
     eframe::run_native(
-        "Stagehand",
+        "Showtime Suite",
         eframe::NativeOptions {
             viewport,
             ..Default::default()

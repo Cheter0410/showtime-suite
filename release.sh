@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stagehand veröffentlichen - ein Befehl, auf jedem Rechner derselbe:
+# Showtime Suite veröffentlichen - ein Befehl, auf jedem Rechner derselbe:
 #
 #   ./release.sh          baut, was dieser Rechner bauen kann, und lädt es hoch
 #                         (Arch-PC: Linux + Windows, Mac: das DMG)
@@ -18,13 +18,13 @@
 set -euo pipefail
 
 # --- Einstellungen für dieses Projekt ---------------------------------------
-APP="Stagehand"
-RELEASES="Cheter0410/stagehand-releases"
+APP="Showtime Suite"
+RELEASES="Cheter0410/showtime-suite-releases"
 # Pflichtteile: "Name|Datei ({V} = Version)|wer baut es"
 PARTS=(
-  "Mac|Stagehand-{V}.dmg|Mac"
-  "Windows|Stagehand-Setup-{V}.exe|Linux-PC"
-  "Linux|stagehand-{V}-linux-x86_64.tar.gz|Linux-PC"
+  "Mac|Showtime-Suite-{V}.dmg|Mac"
+  "Windows|Showtime-Suite-Setup-{V}.exe|Linux-PC"
+  "Linux|showtime-suite-{V}-linux-x86_64.tar.gz|Linux-PC"
 )
 MAC_BUILD=./packaging/macos/build-dmg.sh
 LINUX_BUILD=./packaging/build-on-linux.sh
