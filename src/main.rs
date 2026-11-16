@@ -18,6 +18,8 @@ fn main() -> eframe::Result<()> {
         return Ok(());
     }
     migrate::run();
+    // In the background: osascript takes a moment.
+    std::thread::spawn(system::folder_icons);
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Showtime Suite")
         .with_app_id("showtime-suite")

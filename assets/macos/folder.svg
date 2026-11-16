@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- The folder all show tools share in Applications: a dark folder under a stage light,
+       with the Showtime Suite mark on the front. -->
+  <defs>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b303a"/>
+      <stop offset="1" stop-color="#171a20"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2f39"/>
+      <stop offset="0.55" stop-color="#1b1f26"/>
+      <stop offset="1" stop-color="#101318"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0" r="0.85" fx="0.5" fy="0">
+      <stop offset="0" stop-color="#ffd27a" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#ffb347" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.12" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="stage" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffc45c" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <clipPath id="frontClip">
+      <rect x="72" y="292" width="880" height="604" rx="56"/>
+    </clipPath>
+  </defs>
+
+  <!-- back with tab -->
+  <path filter="url(#shadow)" fill="url(#back)"
+        d="M128 168 h232 c22 0 36 8 50 24 l36 40 c12 14 24 20 44 20 h406 c31 0 56 25 56 56 V600 H72 V224 c0-31 25-56 56-56 z"/>
+  <!-- a sheet peeking out -->
+  <rect x="116" y="252" width="792" height="200" rx="28" fill="#e9e4da" opacity="0.92"/>
+  <rect x="116" y="252" width="792" height="200" rx="28" fill="url(#spot)"/>
+
+  <!-- front -->
+  <g filter="url(#shadow)">
+    <rect x="72" y="292" width="880" height="604" rx="56" fill="url(#front)"/>
+  </g>
+  <g clip-path="url(#frontClip)">
+    <rect x="72" y="292" width="880" height="604" fill="url(#spot)"/>
+    <rect x="72" y="292" width="880" height="604" rx="56" fill="url(#edge)"/>
+    <!-- stage edge with footlights -->
+    <rect x="72" y="836" width="880" height="60" fill="#0b0d11"/>
+    <rect x="152" y="834" width="720" height="5" fill="url(#stage)"/>
+    <g fill="#ffc45c">
+      <circle cx="272" cy="866" r="7" opacity="0.55"/>
+      <circle cx="392" cy="866" r="7" opacity="0.75"/>
+      <circle cx="512" cy="866" r="7"/>
+      <circle cx="632" cy="866" r="7" opacity="0.75"/>
+      <circle cx="752" cy="866" r="7" opacity="0.55"/>
+    </g>
+  </g>
+  <rect x="73" y="293" width="878" height="602" rx="55" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- the Showtime Suite mark -->
+  <g transform="translate(512 556) scale(0.62) translate(-512 -512)">
+    <g filter="url(#glow)" opacity="0.55">
+      <rect x="236" y="236" width="248" height="248" rx="64" fill="#22c55e"/>
+      <rect x="540" y="236" width="248" height="248" rx="64" fill="#e94f8a"/>
+      <rect x="236" y="540" width="248" height="248" rx="64" fill="#3aa0d8"/>
+    </g>
+    <rect x="236" y="236" width="248" height="248" rx="64" fill="#22c55e"/>
+    <rect x="540" y="236" width="248" height="248" rx="64" fill="#e94f8a"/>
+    <rect x="236" y="540" width="248" height="248" rx="64" fill="#3aa0d8"/>
+    <rect x="552" y="552" width="224" height="224" rx="56" fill="none" stroke="#7a8496" stroke-width="24" stroke-dasharray="40 30"/>
+  </g>
+</svg>

@@ -23,7 +23,9 @@ Showtime Suite only downloads the finished release files (no source, no Git). Al
 | Linux   | `…-linux-x86_64.tar.gz`         | `~/.local/share/showtime-suite/apps/<app>`, menu entry, `~/.local/bin` |
 
 Copies in the old places (`/Applications/ShowMaster.app`, `…\Programs\Show Master`) are moved into the
-folder with the next install or update.
+folder with the next install or update. On macOS the folder gets its own icon
+(`assets/macos/folder.svg`, rendered to `folder.png`; raise `FOLDER_ICON_LOOK` in `src/system.rs` when
+it changes).
 
 ## Formerly Stagehand
 

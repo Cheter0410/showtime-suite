@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- macOS: the Showtime Suite folder in Applications gets its own icon (a dark folder with the Showtime
+  Suite mark under a stage light), so it is easy to spot. Set at start and with every install.
 
 ## 0.3.0
 

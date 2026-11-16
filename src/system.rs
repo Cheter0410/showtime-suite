@@ -399,6 +399,7 @@ fn install_dmg(dmg: &Path, bundle: &str) -> Result<(), String> {
             std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
             d
         };
+        folder_icon(&dest_dir);
         let dest = dest_dir.join(bundle);
         let fresh = dest_dir.join(format!(".{bundle}.new"));
         let _ = std::fs::remove_dir_all(&fresh);
@@ -431,6 +432,56 @@ fn install_dmg(dmg: &Path, bundle: &str) -> Result<(), String> {
         .status();
     let _ = std::fs::remove_dir(&mount);
     result
+}
+
+/// The look of the shared folder: raise when `assets/macos/folder.png` changes, so
+/// folders that have the old look get the new one.
+#[cfg(target_os = "macos")]
+const FOLDER_ICON_LOOK: &str = "1";
+
+/// Gives the shared folders in Applications the Showtime Suite folder icon, so they are
+/// easy to spot. Does nothing for a folder that already has this look.
+#[cfg(target_os = "macos")]
+pub fn folder_icons() {
+    let mut bases = vec![PathBuf::from("/Applications")];
+    bases.extend(dirs::home_dir().map(|h| h.join("Applications")));
+    for b in bases {
+        let d = b.join(FOLDER);
+        if d.is_dir() {
+            folder_icon(&d);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn folder_icons() {}
+
+#[cfg(target_os = "macos")]
+fn folder_icon(dir: &Path) {
+    let mark = dir.join(".showtime-suite-look");
+    let has_icon = dir.join("Icon\r").exists();
+    if has_icon && std::fs::read_to_string(&mark).is_ok_and(|s| s.trim() == FOLDER_ICON_LOOK) {
+        return;
+    }
+    if set_folder_icon(dir) {
+        let _ = std::fs::write(&mark, FOLDER_ICON_LOOK);
+    }
+}
+
+/// Sets `assets/macos/folder.png` as the Finder icon of `dir` (through AppKit, with osascript).
+#[cfg(target_os = "macos")]
+fn set_folder_icon(dir: &Path) -> bool {
+    let png = std::env::temp_dir().join(format!("showtime-suite-folder-{}.png", std::process::id()));
+    if std::fs::write(&png, include_bytes!("../assets/macos/folder.png")).is_err() {
+        return false;
+    }
+    let script = "ObjC.import('AppKit'); function run(a) { \
+        var img = $.NSImage.alloc.initWithContentsOfFile(a[0]); \
+        return $.NSWorkspace.sharedWorkspace.setIconForFileOptions(img, a[1], 0) ? 'ok' : 'no'; }";
+    let ok = output(Command::new("osascript").args(["-l", "JavaScript", "-e", script]).arg(&png).arg(dir))
+        .is_some_and(|o| o == "ok");
+    let _ = std::fs::remove_file(&png);
+    ok
 }
 
 #[cfg(target_os = "macos")]
@@ -689,6 +740,19 @@ pub fn uninstall(app: &AppDef, inst: &Installed) -> Result<(), String> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn folder_gets_the_suite_icon() {
+        let d = std::env::temp_dir().join(format!("suite-icon-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        super::folder_icon(&d);
+        assert!(d.join("Icon\r").exists(), "no folder icon set");
+        assert_eq!(std::fs::read_to_string(d.join(".showtime-suite-look")).unwrap(), super::FOLDER_ICON_LOOK);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+
     use super::*;
 
     #[test]
