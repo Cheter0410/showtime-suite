@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Catalog: Beamweave is released with `./release.sh` and installed from source with
+  `bash install-mac.sh` / `./install.sh`, like the other apps.
+
 ## 0.2.0
 
 - Stagehand is now **Showtime Suite** (program `showtime-suite`, app `Showtime Suite.app`, repositories
