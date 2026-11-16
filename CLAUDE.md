@@ -64,7 +64,8 @@ Showtime Suite installs, updates and starts the others; its catalog is `showtime
 ## Build and test
 
 ```bash
-cargo test
+cargo test                              # unit and UI tests (egui_kittest)
+SUITE_SHOTS=/some/folder cargo test    # UI tests also write screenshots
 cargo clippy --all-targets
 ```
 

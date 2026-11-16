@@ -6,20 +6,27 @@ use crate::catalog::{self, AppDef, Catalog};
 use crate::dev::{self, RepoState, Settings, Step};
 use crate::github::{self, Release};
 use crate::system::{self, Installed};
-use egui::{Color32, CornerRadius, Frame, Margin, RichText, Stroke, Vec2};
+use crate::stage;
+use egui::{pos2, vec2, Color32, CornerRadius, Frame, Margin, Rect, RichText, Shape, Stroke, Vec2};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
-const BG: Color32 = Color32::from_rgb(13, 15, 18);
-const CARD: Color32 = Color32::from_rgb(23, 26, 32);
-const LINE: Color32 = Color32::from_rgb(42, 47, 56);
+const BG: Color32 = Color32::from_rgb(9, 10, 14);
+const CARD: Color32 = Color32::from_rgb(20, 22, 29);
+const LINE: Color32 = Color32::from_rgb(38, 42, 52);
+/// The amber of a warm stage light: the suite's own accent.
+const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
 const TEXT: Color32 = Color32::from_rgb(232, 235, 239);
 const MUTED: Color32 = Color32::from_rgb(140, 146, 160);
 const WARN: Color32 = Color32::from_rgb(245, 158, 11);
 const ERROR: Color32 = Color32::from_rgb(239, 68, 68);
 const OK: Color32 = Color32::from_rgb(34, 197, 94);
+
+#[cfg(test)]
+#[path = "ui_tests.rs"]
+mod ui_tests;
 
 /// This program as an entry of its own releases (self-update).
 const SELF_RELEASES: &str = "Cheter0410/showtime-suite-releases";
@@ -81,6 +88,9 @@ pub struct Launcher {
     /// App id whose checkout is asked to be deleted / being deleted.
     delete_ask: Option<String>,
     deleting: Option<String>,
+    /// The stage banner and the tile glow (made on first use).
+    banner: Option<egui::TextureHandle>,
+    glow: Option<egui::TextureHandle>,
 }
 
 /// What the developer section asks for.
@@ -101,26 +111,7 @@ enum DevAction {
 
 impl Launcher {
     pub fn new(ctx: &egui::Context) -> Self {
-        style(ctx);
-        let (tx, rx) = channel();
-        let mut l = Self {
-            cards: Vec::new(),
-            tx,
-            rx,
-            last_detect: Instant::now(),
-            self_update: None,
-            self_job: None,
-            self_error: None,
-            icons_wanted: HashMap::new(),
-            settings: Settings::load(),
-            repos: HashMap::new(),
-            last_repo_scan: None,
-            dev_message: None,
-            path_edit: None,
-            delete_ask: None,
-            deleting: None,
-        };
-        l.set_catalog(Catalog::load(), ctx);
+        let mut l = Self::offline(ctx, Settings::load(), Catalog::load());
         l.refresh(ctx);
         // The live catalog (new apps without a new Showtime Suite).
         let (tx, c) = (l.tx.clone(), ctx.clone());
@@ -141,6 +132,33 @@ impl Launcher {
             let _ = tx.send(Msg::SelfLatest(r));
             c.request_repaint();
         });
+        l
+    }
+
+    /// The window without looking anything up yet (tests show it with made-up states).
+    fn offline(ctx: &egui::Context, settings: Settings, catalog: Catalog) -> Self {
+        style(ctx);
+        let (tx, rx) = channel();
+        let mut l = Self {
+            cards: Vec::new(),
+            tx,
+            rx,
+            last_detect: Instant::now(),
+            self_update: None,
+            self_job: None,
+            self_error: None,
+            icons_wanted: HashMap::new(),
+            settings,
+            repos: HashMap::new(),
+            last_repo_scan: None,
+            dev_message: None,
+            path_edit: None,
+            delete_ask: None,
+            deleting: None,
+            banner: None,
+            glow: None,
+        };
+        l.set_catalog(catalog, ctx);
         l
     }
 
@@ -707,133 +725,284 @@ impl eframe::App for Launcher {
         }
         ctx.request_repaint_after(Duration::from_secs(2));
 
-        egui::Frame::new()
-            .fill(BG)
-            .inner_margin(Margin::symmetric(24, 18))
-            .show(ui, |ui| {
-                let mut refresh = false;
-                ui.horizontal(|ui| {
-                    if let Some(t) = texture_logo(&ctx) {
-                        ui.add(egui::Image::new(&t).fit_to_exact_size(Vec2::splat(30.0)));
-                    }
-                    ui.label(RichText::new("Showtime Suite").size(22.0).strong());
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
-                                .small()
-                                .color(MUTED),
-                        );
-                        refresh = ui
-                            .button("Check for updates")
-                            .on_hover_text("Look for new versions of every app")
-                            .clicked();
-                        if dev::available()
-                            && ui
-                                .selectable_label(self.settings.dev_mode, "Developer")
-                                .on_hover_text("Release apps and install them from source")
-                                .clicked()
-                        {
-                            self.settings.dev_mode = !self.settings.dev_mode;
-                            self.settings.save();
-                        }
-                    });
-                });
-                if refresh {
-                    self.refresh(&ctx);
-                }
-                ui.add_space(6.0);
+        let root = ui.max_rect();
+        ui.painter().rect_filled(root, 0.0, BG);
+        // The stage: a lit banner across the top, the title on its dark side.
+        let hero_h = (root.height() * 0.30).clamp(150.0, 220.0);
+        let hero = Rect::from_min_size(root.min, vec2(root.width(), hero_h));
+        let refresh = self.hero(ui, hero, &ctx);
+        if refresh {
+            self.refresh(&ctx);
+        }
+        let body = Rect::from_min_max(pos2(root.left(), hero.bottom()), root.max);
+        let glow = self
+            .glow
+            .get_or_insert_with(|| ctx.load_texture("tile-glow", stage::glow_image(96), egui::TextureOptions::LINEAR))
+            .id();
 
-                // A newer Showtime Suite.
-                if let Some(r) = self.self_update.clone() {
-                    let mut go = false;
-                    Frame::new()
-                        .fill(Color32::from_rgb(20, 46, 30))
-                        .stroke(Stroke::new(1.0, OK))
-                        .corner_radius(CornerRadius::same(8))
-                        .inner_margin(Margin::symmetric(14, 10))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("Showtime Suite {} is available.", r.version)).strong());
-                                match self.self_job {
-                                    Some(Job::Download(d, t)) => {
-                                        ui.add(egui::ProgressBar::new(if t > 0 { d as f32 / t as f32 } else { 0.0 }).desired_width(160.0));
+        let mut actions: Vec<(String, Action)> = Vec::new();
+        let mut dev_actions: Vec<DevAction> = Vec::new();
+        let mut self_go = false;
+        let dev_on = self.settings.dev_mode && dev::available();
+        if dev_on && self.last_repo_scan.is_none_or(|t| t.elapsed() > Duration::from_secs(10)) {
+            self.scan_repos(&ctx);
+        }
+        let dev_apps = if dev_on { self.dev_apps() } else { Vec::new() };
+        ui.scope_builder(egui::UiBuilder::new().max_rect(body), |ui| {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                Frame::new().inner_margin(Margin { left: 28, right: 28, top: 4, bottom: 20 }).show(ui, |ui| {
+                    // A newer Showtime Suite.
+                    if let Some(r) = self.self_update.clone() {
+                        self_go = self_update_bar(ui, &r, self.self_job, self.self_error.as_deref());
+                        ui.add_space(14.0);
+                    }
+                    section_title(ui, "SHOW TOOLS", None);
+                    let gap = 16.0;
+                    let avail = ui.available_width();
+                    let cols = (((avail + gap) / (290.0 + gap)).floor() as usize).clamp(1, 3);
+                    let w = ((avail - gap * (cols as f32 - 1.0)) / cols as f32).floor();
+                    for row in self.cards.chunks(cols) {
+                        ui.horizontal_top(|ui| {
+                            ui.spacing_mut().item_spacing.x = gap;
+                            for c in row {
+                                ui.allocate_ui_with_layout(vec2(w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                                    ui.set_width(w);
+                                    if let Some(a) = tile(ui, c, glow) {
+                                        actions.push((c.def.id.clone(), a));
                                     }
-                                    Some(Job::Install | Job::Remove) => {
-                                        ui.spinner();
-                                        ui.label("Installing…");
-                                    }
-                                    None => {
-                                        go = ui.button("Update and restart").clicked();
-                                    }
-                                }
-                                if let Some(e) = &self.self_error {
-                                    ui.label(RichText::new(e).color(ERROR));
-                                }
-                            });
+                                });
+                            }
                         });
-                    if go {
-                        self.start_self_update(&ctx);
-                    }
-                    ui.add_space(6.0);
-                }
-
-                let mut actions: Vec<(String, Action)> = Vec::new();
-                let mut dev_actions: Vec<DevAction> = Vec::new();
-                let dev_on = self.settings.dev_mode && dev::available();
-                if dev_on && self.last_repo_scan.is_none_or(|t| t.elapsed() > Duration::from_secs(10)) {
-                    self.scan_repos(&ctx);
-                }
-                let dev_apps = if dev_on { self.dev_apps() } else { Vec::new() };
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                    for c in &self.cards {
-                        if let Some(a) = card(ui, c) {
-                            actions.push((c.def.id.clone(), a));
-                        }
-                        ui.add_space(10.0);
+                        ui.add_space(gap);
                     }
                     if dev_on {
+                        ui.add_space(8.0);
+                        section_title(ui, "BACKSTAGE", Some("Developer: runs the projects' own scripts in a terminal"));
                         let del = DeleteState { ask: self.delete_ask.as_deref(), busy: self.deleting.as_deref() };
                         dev_section(ui, &dev_apps, &self.repos, &mut self.path_edit, del, &self.dev_message, &mut dev_actions);
                         ui.add_space(10.0);
                     }
-                    ui.add_space(4.0);
+                    ui.add_space(6.0);
                     ui.label(
-                        RichText::new(
-                            "Apps are installed from their GitHub releases. A running app is never replaced.",
-                        )
-                        .small()
-                        .color(MUTED),
+                        RichText::new("Apps are installed from their GitHub releases. A running app is never replaced.")
+                            .small()
+                            .color(MUTED),
                     );
                 });
-                for a in dev_actions {
-                    self.dev_action(a, &ctx);
-                }
-                for (id, a) in actions {
-                    match a {
-                        Action::Install => self.start_install(&id, &ctx),
-                        Action::Open => {
-                            if let Some(c) = self.card_mut(&id) {
-                                if let Some(inst) = c.installed.clone() {
-                                    c.message = system::launch(&inst).err().map(|e| (e, true));
-                                }
-                            }
+            });
+        });
+        if self_go {
+            self.start_self_update(&ctx);
+        }
+        for a in dev_actions {
+            self.dev_action(a, &ctx);
+        }
+        for (id, a) in actions {
+            match a {
+                Action::Install => self.start_install(&id, &ctx),
+                Action::Open => {
+                    if let Some(c) = self.card_mut(&id) {
+                        if let Some(inst) = c.installed.clone() {
+                            c.message = system::launch(&inst).err().map(|e| (e, true));
                         }
-                        Action::Notes => {
-                            if let Some(c) = self.card_mut(&id) {
-                                c.notes_open = !c.notes_open;
-                            }
-                        }
-                        Action::Page(url) => system::open_url(&url),
-                        Action::AskRemove(on) => {
-                            if let Some(c) = self.card_mut(&id) {
-                                c.confirm_remove = on;
-                                c.message = None;
-                            }
-                        }
-                        Action::Remove => self.start_remove(&id, &ctx),
                     }
                 }
+                Action::Notes => {
+                    if let Some(c) = self.card_mut(&id) {
+                        c.notes_open = !c.notes_open;
+                    }
+                }
+                Action::Page(url) => system::open_url(&url),
+                Action::AskRemove(on) => {
+                    if let Some(c) = self.card_mut(&id) {
+                        c.confirm_remove = on;
+                        c.message = None;
+                    }
+                }
+                Action::Remove => self.start_remove(&id, &ctx),
+            }
+        }
+    }
+}
+
+impl Launcher {
+    /// The banner: stage lights on the right, title and what is going on on the left, the buttons
+    /// top right. Returns whether "Check for updates" was clicked.
+    fn hero(&mut self, ui: &mut egui::Ui, rect: Rect, ctx: &egui::Context) -> bool {
+        let tex = self
+            .banner
+            .get_or_insert_with(|| ctx.load_texture("stage-banner", stage::banner_image(1600, 360), egui::TextureOptions::LINEAR));
+        // Cover the banner area, keep the right side (the lights) in view.
+        let [tw, th] = tex.size().map(|v| v as f32);
+        let scale = (rect.width() / tw).max(rect.height() / th);
+        let (vw, vh) = (rect.width() / scale / tw, rect.height() / scale / th);
+        let uv = Rect::from_min_max(pos2(1.0 - vw, 0.5 - vh / 2.0), pos2(1.0, 0.5 + vh / 2.0));
+        let p = ui.painter_at(rect);
+        p.image(tex.id(), rect, uv, Color32::WHITE);
+        // Darker towards the title, and fading into the window at the bottom.
+        let mid = rect.left() + rect.width() * 0.62;
+        gradient(&p, Rect::from_min_max(rect.min, pos2(mid, rect.bottom())), [stage::alpha(BG, 0.92), stage::alpha(BG, 0.0)], true);
+        gradient(&p, Rect::from_min_max(pos2(rect.left(), rect.bottom() - 46.0), rect.max), [stage::alpha(BG, 0.0), BG], false);
+
+        let mut refresh = false;
+        let inner = rect.shrink2(vec2(28.0, 20.0));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.label(RichText::new(format!("v{}", env!("CARGO_PKG_VERSION"))).small().color(MUTED));
+                    refresh = ui
+                        .add(glass_button("Check for updates", false))
+                        .on_hover_text("Look for new versions of every app")
+                        .clicked();
+                    if dev::available()
+                        && ui
+                            .add(glass_button("Developer", self.settings.dev_mode))
+                            .on_hover_text("Release apps and install them from source")
+                            .clicked()
+                    {
+                        self.settings.dev_mode = !self.settings.dev_mode;
+                        self.settings.save();
+                    }
+                });
             });
+            // Title and the board at the bottom of the banner.
+            ui.add_space((ui.available_height() - 92.0).max(0.0));
+            ui.horizontal(|ui| {
+                if let Some(t) = texture_logo(ctx) {
+                    ui.add(egui::Image::new(&t).fit_to_exact_size(Vec2::splat(52.0)));
+                }
+                ui.add_space(4.0);
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.label(RichText::new("Showtime Suite").size(30.0).strong().color(TEXT));
+                    ui.label(RichText::new("The show tools for stage and events – installed, up to date and ready.").color(MUTED));
+                });
+            });
+            ui.add_space(10.0);
+            // What is going on, like the board at front of house.
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let installed = self.cards.iter().filter(|c| c.installed.is_some()).count();
+                let running = self.cards.iter().filter(|c| c.running).count();
+                let updates = self.cards.iter().filter(|c| has_update(c)).count();
+                chip(ui, &format!("{} tools", self.cards.len()), MUTED);
+                chip(ui, &format!("{installed} installed"), if installed > 0 { OK } else { MUTED });
+                if running > 0 {
+                    chip(ui, &format!("{running} running"), ERROR);
+                }
+                if updates > 0 {
+                    chip(ui, &format!("{updates} update{} ready", if updates == 1 { "" } else { "s" }), AMBER);
+                }
+            });
+        });
+        refresh
+    }
+}
+
+/// A two-colour gradient over `rect`, left to right (`across`) or top to bottom.
+fn gradient(p: &egui::Painter, rect: Rect, [a, b]: [Color32; 2], across: bool) {
+    let mut m = egui::Mesh::default();
+    let (tl, tr, br, bl) = if across { (a, b, b, a) } else { (a, a, b, b) };
+    for (pos, c) in [(rect.left_top(), tl), (rect.right_top(), tr), (rect.right_bottom(), br), (rect.left_bottom(), bl)] {
+        m.colored_vertex(pos, c);
+    }
+    m.add_triangle(0, 1, 2);
+    m.add_triangle(0, 2, 3);
+    p.add(Shape::mesh(m));
+}
+
+/// A button that sits on the banner: dark glass, amber when switched on.
+fn glass_button(text: &str, on: bool) -> egui::Button<'_> {
+    let label = RichText::new(text).color(if on { Color32::BLACK } else { TEXT });
+    egui::Button::new(if on { label.strong() } else { label })
+        .fill(if on { AMBER } else { Color32::from_black_alpha(150) })
+        .stroke(Stroke::new(1.0, if on { AMBER } else { Color32::from_white_alpha(40) }))
+        .corner_radius(CornerRadius::same(16))
+        .min_size(vec2(0.0, 30.0))
+}
+
+/// A small label with a coloured dot, on dark glass.
+fn chip(ui: &mut egui::Ui, text: &str, color: Color32) {
+    Frame::new()
+        .fill(Color32::from_black_alpha(140))
+        .stroke(Stroke::new(1.0, Color32::from_white_alpha(28)))
+        .corner_radius(CornerRadius::same(12))
+        .inner_margin(Margin { left: 10, right: 11, top: 4, bottom: 4 })
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                dot(ui, color);
+                ui.label(RichText::new(text).size(12.5).color(TEXT));
+            });
+        });
+}
+
+/// A little lamp: a dot with a soft halo.
+fn dot(ui: &mut egui::Ui, color: Color32) {
+    let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), egui::Sense::hover());
+    ui.painter().circle_filled(r.center(), 6.0, stage::alpha(color, 0.18));
+    ui.painter().circle_filled(r.center(), 3.5, color);
+}
+
+/// A small spaced heading with a hairline after it.
+fn section_title(ui: &mut egui::Ui, text: &str, note: Option<&str>) {
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(text).size(11.5).strong().extra_letter_spacing(2.0).color(MUTED));
+        if let Some(n) = note {
+            ui.label(RichText::new(n).small().color(Color32::from_rgb(96, 102, 116)));
+        }
+        let r = ui.available_rect_before_wrap();
+        let y = r.center().y;
+        ui.painter().hline(r.left() + 6.0..=r.right(), y, Stroke::new(1.0, LINE));
+    });
+    ui.add_space(8.0);
+}
+
+/// "Showtime Suite x is available" with its button or progress. Returns whether to update now.
+fn self_update_bar(ui: &mut egui::Ui, r: &Release, job: Option<Job>, error: Option<&str>) -> bool {
+    let mut go = false;
+    Frame::new()
+        .fill(Color32::from_rgb(38, 30, 14))
+        .stroke(Stroke::new(1.0, stage::alpha(AMBER, 0.6)))
+        .corner_radius(CornerRadius::same(12))
+        .inner_margin(Margin::symmetric(16, 12))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                dot(ui, AMBER);
+                ui.label(RichText::new(format!("Showtime Suite {} is available.", r.version)).strong());
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match job {
+                    Some(Job::Download(d, t)) => {
+                        ui.add(egui::ProgressBar::new(if t > 0 { d as f32 / t as f32 } else { 0.0 }).desired_width(180.0));
+                    }
+                    Some(Job::Install | Job::Remove) => {
+                        ui.label("Installing…");
+                        ui.spinner();
+                    }
+                    None => {
+                        go = ui.add(primary_button("Update and restart", AMBER)).clicked();
+                    }
+                });
+            });
+            if let Some(e) = error {
+                ui.label(RichText::new(e).color(ERROR));
+            }
+        });
+    go
+}
+
+fn primary_button(text: &str, accent: Color32) -> egui::Button<'_> {
+    egui::Button::new(RichText::new(text).strong().color(Color32::BLACK))
+        .fill(accent)
+        .corner_radius(CornerRadius::same(8))
+        .min_size(vec2(112.0, 34.0))
+}
+
+fn has_update(c: &Card) -> bool {
+    match (c.installed.as_ref().and_then(|i| i.version.as_deref()), &c.latest) {
+        (Some(v), Some(Ok(Some(r)))) => github::is_newer(&r.version, v),
+        _ => false,
     }
 }
 
@@ -847,8 +1016,9 @@ fn texture_logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
     Some(t)
 }
 
-/// One app's card. Returns what the user asked for.
-fn card(ui: &mut egui::Ui, c: &Card) -> Option<Action> {
+/// One app as a tile: lit from above in its colour, icon and name, what it does, its state, and
+/// what can be done. Returns what the user asked for.
+fn tile(ui: &mut egui::Ui, c: &Card, glow: egui::TextureId) -> Option<Action> {
     let accent = catalog::parse_color(&c.def.color)
         .map(|[r, g, b]| Color32::from_rgb(r, g, b))
         .unwrap_or(OK);
@@ -859,173 +1029,178 @@ fn card(ui: &mut egui::Ui, c: &Card) -> Option<Action> {
     };
     let asset = release.and_then(|r| system::pick_asset(&c.def, r));
     let installed_version = c.installed.as_ref().and_then(|i| i.version.clone());
-    let update = match (&installed_version, release) {
-        (Some(v), Some(r)) => github::is_newer(&r.version, v),
-        (None, Some(_)) => false,
-        _ => false,
-    };
+    let update = has_update(c);
     let mut action = None;
-    Frame::new()
-        .fill(CARD)
-        .stroke(Stroke::new(1.0, LINE))
-        .corner_radius(CornerRadius::same(10))
-        .inner_margin(Margin::same(14))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                match &c.icon {
-                    Some(t) => {
-                        ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::splat(64.0)));
-                    }
-                    None => {
-                        let (r, _) =
-                            ui.allocate_exact_size(Vec2::splat(64.0), egui::Sense::hover());
-                        ui.painter().rect_filled(r, 14.0, accent);
-                    }
+    // The background goes under the content once its size is known.
+    let bg = ui.painter().add(Shape::Noop);
+    let inner = Frame::new().inner_margin(Margin { left: 18, right: 18, top: 20, bottom: 16 }).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.set_min_height(214.0);
+        ui.horizontal(|ui| {
+            match &c.icon {
+                Some(t) => {
+                    ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::splat(56.0)));
                 }
-                ui.add_space(6.0);
-                // Text column.
-                let right_w = 250.0f32.min(ui.available_width() * 0.45);
-                ui.allocate_ui_with_layout(
-                    Vec2::new(ui.available_width() - right_w, 64.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(&c.def.name).size(19.0).strong());
-                            if c.running {
-                                pill(ui, "RUNNING", accent);
-                            }
-                        });
-                        if !c.def.tagline.is_empty() {
-                            ui.add(
-                                egui::Label::new(RichText::new(&c.def.tagline).color(MUTED)).wrap(),
-                            );
-                        }
-                        let (status, color) =
-                            status_line(c, supported, release, update, &installed_version);
-                        ui.label(RichText::new(status).small().color(color));
-                    },
-                );
-                // Buttons.
-                ui.with_layout(
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| match c.job {
-                        Some(Job::Download(d, t)) => {
-                            let f = if t > 0 { d as f32 / t as f32 } else { 0.0 };
-                            ui.add(egui::ProgressBar::new(f).desired_width(180.0).text(format!(
-                                "{} / {}",
-                                fmt_mb(d),
-                                fmt_mb(t)
-                            )));
-                        }
-                        Some(Job::Install) => {
-                            ui.label("Installing…");
-                            ui.spinner();
-                        }
-                        Some(Job::Remove) => {
-                            ui.label("Removing…");
-                            ui.spinner();
-                        }
-                        None if c.confirm_remove => {
-                            if ui.button("Cancel").clicked() {
-                                action = Some(Action::AskRemove(false));
-                            }
-                            if ui
-                                .add(egui::Button::new(RichText::new("Remove").strong().color(Color32::WHITE)).fill(ERROR))
-                                .clicked()
-                            {
-                                action = Some(Action::Remove);
-                            }
-                        }
-                        None => {
-                            let primary = |text: &str| {
-                                egui::Button::new(
-                                    RichText::new(text).strong().color(Color32::BLACK),
-                                )
-                                .fill(accent)
-                            };
-                            if c.installed.is_some() {
-                                if update && asset.is_some() {
-                                    let b = ui.add_enabled(
-                                        !c.running,
-                                        primary(&format!(
-                                            "Update to {}",
-                                            release.map_or("", |r| r.version.as_str())
-                                        )),
-                                    );
-                                    let b = b.on_disabled_hover_text(format!(
-                                        "Quit {} first - it is running.",
-                                        c.def.name
-                                    ));
-                                    if b.clicked() {
-                                        action = Some(Action::Install);
-                                    }
-                                    if ui.button("Open").clicked() {
-                                        action = Some(Action::Open);
-                                    }
-                                } else if ui.add(primary("Open")).clicked() {
-                                    action = Some(Action::Open);
-                                }
-                            } else if supported
-                                && asset.is_some()
-                                && ui.add(primary("Install")).clicked()
-                            {
-                                action = Some(Action::Install);
-                            }
-                            if release.is_some_and(|r| !r.notes.is_empty())
-                                && ui.selectable_label(c.notes_open, "What's new").clicked()
-                            {
-                                action = Some(Action::Notes);
-                            }
-                            if let Some(inst) = &c.installed {
-                                let removable = system::removable(&c.def, inst);
-                                let b = ui
-                                    .add_enabled(
-                                        removable && !c.running,
-                                        egui::Button::new(RichText::new("Remove…").small().color(MUTED))
-                                            .frame(false),
-                                    )
-                                    .on_hover_text("Uninstall it from this computer")
-                                    .on_disabled_hover_text(if c.running {
-                                        format!("Quit {} first - it is running.", c.def.name)
-                                    } else {
-                                        format!(
-                                            "Installed by the system ({}) - remove it with the package manager.",
-                                            inst.path.display()
-                                        )
-                                    });
-                                if b.clicked() {
-                                    action = Some(Action::AskRemove(true));
-                                }
-                            }
-                        }
-                    },
-                );
-            });
-            if c.confirm_remove && c.job.is_none() {
+                None => {
+                    let (r, _) = ui.allocate_exact_size(Vec2::splat(56.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 14.0, accent);
+                }
+            }
+            ui.add_space(4.0);
+            ui.vertical(|ui| {
                 ui.add_space(4.0);
-                ui.label(
-                    RichText::new(format!(
-                        "Remove {} from this computer? Its settings and your files (shows, presentations) stay.",
-                        c.def.name
-                    ))
-                    .color(WARN),
+                ui.label(RichText::new(&c.def.name).size(20.0).strong().color(TEXT));
+                if c.running {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        dot(ui, ERROR);
+                        ui.label(RichText::new("RUNNING").size(11.0).strong().extra_letter_spacing(1.5).color(ERROR));
+                    });
+                } else {
+                    let (text, color) = match (&c.installed, update) {
+                        (Some(_), true) => ("UPDATE READY", AMBER),
+                        (Some(_), false) => ("INSTALLED", accent),
+                        (None, _) => ("NOT INSTALLED", MUTED),
+                    };
+                    ui.label(RichText::new(text).size(11.0).strong().extra_letter_spacing(1.5).color(color));
+                }
+            });
+        });
+        ui.add_space(10.0);
+        // The tagline gets the same room on every tile, so the buttons line up.
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), 54.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.set_min_height(54.0);
+            if !c.def.tagline.is_empty() {
+                ui.add(egui::Label::new(RichText::new(&c.def.tagline).color(MUTED)).wrap());
+            }
+        });
+        let (status, color) = status_line(c, supported, release, update, &installed_version);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 7.0;
+            dot(ui, color);
+            ui.add(egui::Label::new(RichText::new(status).size(12.5).color(color)).truncate());
+        });
+        ui.add_space(12.0);
+        ui.horizontal(|ui| match c.job {
+            Some(Job::Download(d, t)) => {
+                let f = if t > 0 { d as f32 / t as f32 } else { 0.0 };
+                ui.add(
+                    egui::ProgressBar::new(f)
+                        .desired_width(ui.available_width())
+                        .fill(accent)
+                        .text(RichText::new(format!("{} / {}", fmt_mb(d), fmt_mb(t))).color(Color32::BLACK)),
                 );
             }
-            if let Some((m, err)) = &c.message {
-                ui.label(RichText::new(m).color(if *err { ERROR } else { OK }));
+            Some(Job::Install) => {
+                ui.spinner();
+                ui.label("Installing…");
             }
-            if c.notes_open {
-                if let Some(r) = release {
-                    ui.separator();
-                    ui.label(RichText::new(format!("Version {}", r.version)).strong());
-                    ui.add(egui::Label::new(RichText::new(&r.notes).color(MUTED)).wrap());
-                    if !r.page.is_empty() && ui.link("Release page").clicked() {
-                        action = Some(Action::Page(r.page.clone()));
+            Some(Job::Remove) => {
+                ui.spinner();
+                ui.label("Removing…");
+            }
+            None if c.confirm_remove => {
+                if ui.add(egui::Button::new(RichText::new("Remove").strong().color(Color32::WHITE)).fill(ERROR).min_size(vec2(96.0, 34.0))).clicked() {
+                    action = Some(Action::Remove);
+                }
+                if ui.add(egui::Button::new("Cancel").min_size(vec2(0.0, 34.0))).clicked() {
+                    action = Some(Action::AskRemove(false));
+                }
+            }
+            None => {
+                if c.installed.is_some() {
+                    if update && asset.is_some() {
+                        let b = ui
+                            .add_enabled(!c.running, primary_button(&format!("Update to {}", release.map_or("", |r| r.version.as_str())), AMBER))
+                            .on_disabled_hover_text(format!("Quit {} first - it is running.", c.def.name));
+                        if b.clicked() {
+                            action = Some(Action::Install);
+                        }
+                        if ui.add(egui::Button::new("Open").min_size(vec2(0.0, 34.0))).clicked() {
+                            action = Some(Action::Open);
+                        }
+                    } else if ui.add(primary_button("Open", accent)).clicked() {
+                        action = Some(Action::Open);
                     }
+                } else if supported && asset.is_some() && ui.add(primary_button("Install", accent)).clicked() {
+                    action = Some(Action::Install);
                 }
             }
         });
+        if c.job.is_none() && !c.confirm_remove {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().button_padding = vec2(0.0, 2.0);
+                ui.spacing_mut().item_spacing.x = 18.0;
+                if release.is_some_and(|r| !r.notes.is_empty())
+                    && ui
+                        .add(egui::Button::new(RichText::new("What's new").small().color(if c.notes_open { accent } else { MUTED })).frame(false))
+                        .clicked()
+                {
+                    action = Some(Action::Notes);
+                }
+                if let Some(inst) = &c.installed {
+                    let removable = system::removable(&c.def, inst);
+                    let b = ui
+                        .add_enabled(removable && !c.running, egui::Button::new(RichText::new("Remove…").small().color(MUTED)).frame(false))
+                        .on_hover_text("Uninstall it from this computer")
+                        .on_disabled_hover_text(if c.running {
+                            format!("Quit {} first - it is running.", c.def.name)
+                        } else {
+                            format!("Installed by the system ({}) - remove it with the package manager.", inst.path.display())
+                        });
+                    if b.clicked() {
+                        action = Some(Action::AskRemove(true));
+                    }
+                }
+            });
+        }
+        if c.confirm_remove && c.job.is_none() {
+            ui.add_space(6.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("Remove {} from this computer? Its settings and your files (shows, presentations) stay.", c.def.name))
+                        .color(WARN),
+                )
+                .wrap(),
+            );
+        }
+        if let Some((m, err)) = &c.message {
+            ui.add_space(6.0);
+            ui.add(egui::Label::new(RichText::new(m).color(if *err { ERROR } else { OK })).wrap());
+        }
+        if c.notes_open {
+            if let Some(r) = release {
+                ui.add_space(8.0);
+                ui.separator();
+                ui.label(RichText::new(format!("Version {}", r.version)).strong());
+                ui.add(egui::Label::new(RichText::new(&r.notes).color(MUTED)).wrap());
+                if !r.page.is_empty() && ui.link("Release page").clicked() {
+                    action = Some(Action::Page(r.page.clone()));
+                }
+            }
+        }
+    });
+    let r = inner.response.rect;
+    let hovered = ui.rect_contains_pointer(r);
+    let radius = CornerRadius::same(14);
+    let light = if c.running || hovered { 0.30 } else { 0.20 };
+    let glow_rect = Rect::from_min_max(r.min + vec2(1.0, 1.0), pos2(r.right() - 1.0, r.top() + r.height().min(260.0)));
+    ui.painter().set(
+        bg,
+        Shape::Vec(vec![
+            Shape::rect_filled(r, radius, CARD),
+            Shape::image(glow, glow_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), stage::alpha(accent, light)),
+            // The lamp: a strip of light along the top edge.
+            Shape::rect_filled(Rect::from_min_max(pos2(r.left() + 22.0, r.top()), pos2(r.right() - 22.0, r.top() + 3.0)), CornerRadius::same(2), accent),
+            Shape::rect_stroke(
+                r,
+                radius,
+                Stroke::new(1.0, if hovered { stage::alpha(accent, 0.55) } else { LINE }),
+                egui::StrokeKind::Inside,
+            ),
+        ]),
+    );
     action
 }
 
@@ -1073,16 +1248,6 @@ fn status_line(
     }
 }
 
-fn pill(ui: &mut egui::Ui, text: &str, color: Color32) {
-    ui.label(
-        RichText::new(format!(" {text} "))
-            .small()
-            .strong()
-            .color(Color32::BLACK)
-            .background_color(color),
-    );
-}
-
 /// The developer section: per app its source folder and git state, with
 /// Release / Install (or Clone), and both for all apps at once.
 /// Deleting a checkout: which app is asked about / being deleted.
@@ -1104,25 +1269,19 @@ fn dev_section(
     Frame::new()
         .fill(CARD)
         .stroke(Stroke::new(1.0, LINE))
-        .corner_radius(CornerRadius::same(10))
-        .inner_margin(Margin::same(14))
+        .corner_radius(CornerRadius::same(14))
+        .inner_margin(Margin::symmetric(18, 14))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Developer").size(17.0).strong());
-                ui.label(
-                    RichText::new("opens a terminal and runs the project's own scripts")
-                        .small()
-                        .color(MUTED),
-                );
-            });
-            for a in apps {
+            for (i, a) in apps.iter().enumerate() {
                 let (dir, state) = repos.get(&a.id).cloned().unwrap_or((None, None));
                 let accent = catalog::parse_color(&a.color)
                     .map(|[r, g, b]| Color32::from_rgb(r, g, b))
                     .unwrap_or(OK);
-                ui.add_space(4.0);
-                ui.separator();
+                if i > 0 {
+                    ui.add_space(4.0);
+                    ui.separator();
+                }
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(Vec2::new(4.0, 34.0), egui::Sense::hover());
                     ui.painter().rect_filled(r, 2.0, accent);

@@ -1,5 +1,17 @@
 # Changelog
 
+
+## 0.3.0
+
+- New look, like a stage before the show: a banner with a lighting rig (beams in the colours of the
+  apps through haze, light on the stage floor, the audience in front), the title on its dark side and a
+  board of what is going on (installed, running, updates ready).
+- The apps are tiles in a grid (three, two or one per row, by window size), each lit from above in its
+  own colour, with its state in plain words and the main action as a large button. "What's new" and
+  "Remove…" sit below it.
+- The developer section is "Backstage", in the same style. The window opens larger (1040 × 720).
+- UI tests with egui_kittest and made-up app states; `SUITE_SHOTS=<folder> cargo test` writes pictures.
+
 ## 0.2.1
 
 - Catalog: Beamweave is released with `./release.sh` and installed from source with

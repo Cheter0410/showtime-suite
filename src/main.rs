@@ -8,6 +8,7 @@ mod dev;
 mod github;
 mod migrate;
 mod paths;
+mod stage;
 mod system;
 mod ui;
 
@@ -20,7 +21,7 @@ fn main() -> eframe::Result<()> {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Showtime Suite")
         .with_app_id("showtime-suite")
-        .with_inner_size([820.0, 600.0])
+        .with_inner_size([1040.0, 720.0])
         .with_min_inner_size([520.0, 420.0]);
     if let Ok(img) = image::load_from_memory(include_bytes!("../assets/icon.png")) {
         let img = img.to_rgba8();
