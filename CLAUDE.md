@@ -58,6 +58,7 @@ All live side by side in `~/Desktop/dev` (folder names in lower case):
 | `lantern` | Cheter0410/lantern | Cheter0410/lantern-releases |
 | `showtime-suite` | Cheter0410/showtime-suite | Cheter0410/showtime-suite-releases |
 | `beamweave` | Cheter0410/beamweave | Cheter0410/beamweave-releases |
+| `blueprint` | jay212-1/blueprint | jay212-1/blueprint-releases |
 
 Showtime Suite installs, updates and starts the others; its catalog is `showtime-suite/apps.json`.
 

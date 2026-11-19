@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- New app in the catalog: Blueprint, planning for live shows (mic plots, setlists, patch plans and
+  more).
+
 ## 0.3.1
 
 - macOS: the Showtime Suite folder in Applications gets its own icon (a dark folder with the Showtime

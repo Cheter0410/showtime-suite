@@ -84,6 +84,35 @@
         "install_macos": "bash install-mac.sh",
         "install_linux": "./install.sh"
       }
+    },
+    {
+      "id": "blueprint",
+      "name": "Blueprint",
+      "tagline": "Planning: mic plots, setlists, patch plans and more.",
+      "color": "#3898ec",
+      "releases": "jay212-1/blueprint-releases",
+      "icon_url": "https://raw.githubusercontent.com/Cheter0410/showtime-suite-releases/main/icons/blueprint.png",
+      "macos": {
+        "asset_suffix": ".dmg",
+        "app": "Blueprint.app"
+      },
+      "windows": {
+        "asset_prefix": "Blueprint-Setup-",
+        "asset_suffix": ".exe",
+        "inno_app_id": "{152A3A39-AF82-47BD-A7FF-4376CC77D835}",
+        "exe": "blueprint.exe"
+      },
+      "linux": {
+        "asset_suffix": "-linux-x86_64.tar.gz",
+        "bin": "blueprint"
+      },
+      "dev": {
+        "repo": "jay212-1/blueprint",
+        "folder": "blueprint",
+        "release": "./release.sh",
+        "install_macos": "bash install-mac.sh",
+        "install_linux": "./install.sh"
+      }
     }
   ]
 }

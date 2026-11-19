@@ -147,6 +147,7 @@ pub fn built_in_icon(id: &str) -> Option<&'static [u8]> {
         "showmaster" => Some(include_bytes!("../assets/apps/showmaster.png")),
         "beamweave" => Some(include_bytes!("../assets/apps/beamweave.png")),
         "lantern" => Some(include_bytes!("../assets/apps/lantern.png")),
+        "blueprint" => Some(include_bytes!("../assets/apps/blueprint.png")),
         _ => None,
     }
 }
