@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- Developer section: when git cannot read a source folder, it says why in git's own words (e.g.
+  "detected dubious ownership" for a folder that belongs to another user, or "no commit yet")
+  instead of "not a git checkout", with a hint on hover. "Clone" is only offered when there is no
+  folder yet; it failed on an existing one.
+
 ## 1.0.0
 
 - First stable release: the development phase is complete. From here on there are fixes and smaller

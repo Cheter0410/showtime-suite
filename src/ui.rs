@@ -13,6 +13,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
+/// A source checkout, its git state, and why git failed there (if it did).
+type RepoEntry = (Option<PathBuf>, Option<RepoState>, Option<String>);
+
 const BG: Color32 = Color32::from_rgb(9, 10, 14);
 const CARD: Color32 = Color32::from_rgb(20, 22, 29);
 const LINE: Color32 = Color32::from_rgb(38, 42, 52);
@@ -40,8 +43,8 @@ enum Msg {
     Installing(String),
     Finished(String, Result<(), String>),
     SelfLatest(Option<Release>),
-    /// Source checkouts found: (app id, folder, state).
-    Repos(Vec<(String, Option<PathBuf>, Option<RepoState>)>),
+    /// Source checkouts found: (app id, (folder, state, git problem)).
+    Repos(Vec<(String, RepoEntry)>),
     /// An app was uninstalled (or not).
     Removed(String, Result<(), String>),
     /// A source checkout was deleted (or not).
@@ -79,8 +82,8 @@ pub struct Launcher {
     self_error: Option<String>,
     icons_wanted: HashMap<String, bool>,
     settings: Settings,
-    /// App id -> (checkout, state), for the developer section.
-    repos: HashMap<String, (Option<PathBuf>, Option<RepoState>)>,
+    /// App id -> (checkout, state, git problem), for the developer section.
+    repos: HashMap<String, RepoEntry>,
     last_repo_scan: Option<Instant>,
     dev_message: Option<(String, bool)>,
     /// A source folder being typed in (app id, text).
@@ -313,8 +316,8 @@ impl Launcher {
                 }
                 Msg::SelfLatest(r) => self.self_update = r,
                 Msg::Repos(list) => {
-                    for (id, dir, state) in list {
-                        self.repos.insert(id, (dir, state));
+                    for (id, entry) in list {
+                        self.repos.insert(id, entry);
                     }
                 }
                 Msg::Removed(id, r) => {
@@ -371,7 +374,11 @@ impl Launcher {
                 .map(|a| {
                     let dir = dev::find_checkout(a, &settings);
                     let state = dir.as_deref().and_then(dev::repo_state);
-                    (a.id.clone(), dir, state)
+                    let problem = match (&dir, &state) {
+                        (Some(d), None) => Some(dev::git_problem(d)),
+                        _ => None,
+                    };
+                    (a.id.clone(), (dir, state, problem))
                 })
                 .collect();
             let _ = tx.send(Msg::Repos(list));
@@ -383,8 +390,8 @@ impl Launcher {
     fn checkout(&self, id: &str) -> Option<PathBuf> {
         self.repos
             .get(id)
-            .filter(|(_, s)| s.is_some())
-            .and_then(|(d, _)| d.clone())
+            .filter(|(_, s, _)| s.is_some())
+            .and_then(|(d, _, _)| d.clone())
     }
 
     fn dev_action(&mut self, action: DevAction, ctx: &egui::Context) {
@@ -422,7 +429,7 @@ impl Launcher {
             DevAction::InstallAll => Some(all(&install_step)),
             DevAction::Clone(id) => {
                 let others: Vec<PathBuf> =
-                    self.repos.values().filter_map(|(d, _)| d.clone()).collect();
+                    self.repos.values().filter_map(|(d, _, _)| d.clone()).collect();
                 let app = apps.iter().find(|a| a.id == id);
                 match (app, app.and_then(|a| dev::default_dir(a, &others))) {
                     (Some(app), Some(target)) => {
@@ -447,7 +454,7 @@ impl Launcher {
                 let cur = self
                     .repos
                     .get(&id)
-                    .and_then(|(d, _)| d.as_ref())
+                    .and_then(|(d, _, _)| d.as_ref())
                     .map(|p| p.display().to_string())
                     .unwrap_or_default();
                 self.path_edit = Some((id, cur));
@@ -482,7 +489,7 @@ impl Launcher {
             }
             DevAction::DeleteConfirm(id) => {
                 self.delete_ask = None;
-                if let Some(dir) = self.repos.get(&id).and_then(|(d, _)| d.clone()) {
+                if let Some(dir) = self.repos.get(&id).and_then(|(d, _, _)| d.clone()) {
                     self.deleting = Some(id.clone());
                     let (tx, c) = (self.tx.clone(), ctx.clone());
                     std::thread::spawn(move || {
@@ -1260,7 +1267,7 @@ struct DeleteState<'a> {
 fn dev_section(
     ui: &mut egui::Ui,
     apps: &[AppDef],
-    repos: &HashMap<String, (Option<PathBuf>, Option<RepoState>)>,
+    repos: &HashMap<String, RepoEntry>,
     path_edit: &mut Option<(String, String)>,
     del: DeleteState,
     message: &Option<(String, bool)>,
@@ -1274,7 +1281,7 @@ fn dev_section(
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             for (i, a) in apps.iter().enumerate() {
-                let (dir, state) = repos.get(&a.id).cloned().unwrap_or((None, None));
+                let (dir, state, problem) = repos.get(&a.id).cloned().unwrap_or((None, None, None));
                 let accent = catalog::parse_color(&a.color)
                     .map(|[r, g, b]| Color32::from_rgb(r, g, b))
                     .unwrap_or(OK);
@@ -1325,6 +1332,7 @@ fn dev_section(
                                 out.push(DevAction::Delete(a.id.clone()));
                             }
                         } else if d.is_some()
+                            && dir.is_none()
                             && ui.button("Clone").on_hover_text("Get the source from GitHub").clicked()
                         {
                             out.push(DevAction::Clone(a.id.clone()));
@@ -1378,10 +1386,22 @@ fn dev_section(
                                                 }
                                                 (t, if s.changes > 0 { WARN } else { MUTED })
                                             }
-                                            (Some(d), None) => (format!("{} · not a git checkout", short_path(d)), ERROR),
+                                            (Some(d), None) => (
+                                                format!(
+                                                    "{} · git: {}",
+                                                    short_path(d),
+                                                    problem.as_deref().unwrap_or("not a usable checkout")
+                                                ),
+                                                ERROR,
+                                            ),
                                             (None, _) => ("source not on this computer".into(), MUTED),
                                         };
-                                        ui.add(egui::Label::new(RichText::new(text).small().color(color)).truncate());
+                                        let label = ui.add(egui::Label::new(RichText::new(&text).small().color(color)).truncate());
+                                        if dir.is_some() && state.is_none() {
+                                            label.on_hover_text(format!(
+                                                "{text}\n\nRun git in that folder in a terminal to see more. A folder that belongs to another user: sudo chown -R \"$USER\": <folder>"
+                                            ));
+                                        }
                                     });
                                 }
                             }
@@ -1394,7 +1414,7 @@ fn dev_section(
             ui.horizontal(|ui| {
                 let any = apps
                     .iter()
-                    .any(|a| repos.get(&a.id).is_some_and(|(d, s)| d.is_some() && s.is_some()));
+                    .any(|a| repos.get(&a.id).is_some_and(|(d, s, _)| d.is_some() && s.is_some()));
                 if ui
                     .add_enabled(any, egui::Button::new("Release all"))
                     .on_hover_text("One terminal that releases every app in turn (Showtime Suite last)")

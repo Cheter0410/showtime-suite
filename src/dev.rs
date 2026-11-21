@@ -186,6 +186,33 @@ pub fn repo_state(dir: &Path) -> Option<RepoState> {
     })
 }
 
+/// Why `repo_state` found nothing usable in `dir`: git's own first error
+/// line (e.g. "detected dubious ownership" when the folder belongs to another
+/// user, or a repository without a commit), or that git is missing.
+pub fn git_problem(dir: &Path) -> String {
+    match Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+    {
+        Err(_) => "git is not installed (or not on PATH)".into(),
+        Ok(o) if o.status.success() => "git answers, but the state could not be read".into(),
+        Ok(o) => {
+            let err = String::from_utf8_lossy(&o.stderr);
+            let line = err
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+                .unwrap_or("git failed without a message");
+            if line.contains("unknown revision") {
+                return "no commit yet (an unfinished clone?)".into();
+            }
+            line.strip_prefix("fatal: ").unwrap_or(line).to_string()
+        }
+    }
+}
+
 /// Delete a source checkout (the whole folder, build output included).
 /// Only a git checkout is deleted, and never the home folder or one above it.
 pub fn delete_checkout(dir: &Path) -> Result<(), String> {
@@ -358,9 +385,13 @@ mod tests {
             std::fs::write(repo.join("new.txt"), "x").unwrap();
             let st = repo_state(&repo);
             // A fresh repository has no branch commit yet: rev-parse may fail.
-            if let Some(st) = st {
-                assert_eq!(st.untracked, 1);
-                assert!(st.would_lose().unwrap().contains("1 new file"));
+            match st {
+                Some(st) => {
+                    assert_eq!(st.untracked, 1);
+                    assert!(st.would_lose().unwrap().contains("1 new file"));
+                }
+                // Then git says why, in its own words.
+                None => assert!(!git_problem(&repo).is_empty()),
             }
             delete_checkout(&repo).unwrap();
             assert!(!repo.exists());
