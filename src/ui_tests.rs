@@ -73,8 +73,9 @@ fn every_app_has_a_tile_with_what_can_be_done() {
     h.get_by_label("Beamweave");
     h.get_by_label("Lantern");
     h.get_by_label("Blueprint");
+    h.get_by_label("Pulse");
     h.get_by_label("Update to 0.5.1");
-    assert_eq!(h.get_all_by_label("Install").count(), 2);
+    assert_eq!(h.get_all_by_label("Install").count(), 3);
     assert_eq!(h.get_all_by_label("Open").count(), 2);
     h.get_by_label("1 update ready");
     h.get_by_label("1 running");

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- New app in the catalog: Pulse, the network and device monitor (one traffic light for the show's
+  technology).
+
 ## 0.3.2
 
 - New app in the catalog: Blueprint, planning for live shows (mic plots, setlists, patch plans and
