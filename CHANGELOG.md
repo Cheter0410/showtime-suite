@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0
+
+- First stable release: the development phase is complete. From here on there are fixes and smaller
+  improvements.
+
 ## 0.3.3
 
 - New app in the catalog: Pulse, the network and device monitor (one traffic light for the show's

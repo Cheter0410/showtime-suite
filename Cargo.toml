@@ -1,6 +1,6 @@
 [package]
 name = "showtime-suite"
-version = "0.3.3"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.85"
 description = "Installs, updates and starts the show tools (Show Master, Beamweave, Lantern, ...)"
